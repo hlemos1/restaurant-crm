@@ -25,6 +25,10 @@ import {
   Brain,
   ShieldCheck,
   HelpCircle,
+  Activity,
+  GitGraph,
+  ScrollText,
+  Network,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +50,15 @@ const navSections: NavSection[] = [
     items: [
       { href: "/", label: "Hub", icon: LayoutDashboard },
       { href: "/ajuda", label: "Ajuda", icon: HelpCircle },
+    ],
+  },
+  {
+    title: "Sinapse",
+    items: [
+      { href: "/sinapse", label: "Cockpit", icon: Activity },
+      { href: "/sinapse/mapa", label: "Mapa Neural", icon: GitGraph },
+      { href: "/sinapse/decisoes", label: "Decisoes", icon: ScrollText },
+      { href: "/sinapse/documentos", label: "Documentos", icon: Network },
     ],
   },
   {
@@ -189,9 +202,9 @@ export default function Sidebar() {
           <ul className="space-y-0.5">
             <li>
               <Link
-                href="/configuracoes"
+                href="/settings"
                 className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  pathname.startsWith("/configuracoes")
+                  pathname.startsWith("/settings")
                     ? "bg-primary text-primary-foreground font-medium"
                     : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 }`}
