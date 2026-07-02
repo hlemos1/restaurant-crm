@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { defaultRateLimiter, RateLimitError, rateLimit } from "./rate-limit";
+import {
+  createRateLimiter,
+  DistributedRateLimiter,
+  RateLimitError,
+  RateLimitUnavailableError,
+} from "./rate-limit";
 
 interface RateLimitWrapperOptions {
   limit?: number;
   interval?: number;
   uniqueTokenPerInterval?: number;
+  /** Prefixo das chaves no Redis. Default: "api". */
+  prefix?: string;
 }
 
 type ApiHandler = (request: NextRequest, context?: unknown) => Promise<NextResponse> | NextResponse;
@@ -19,7 +26,7 @@ function extractIp(request: NextRequest): string {
 }
 
 /**
- * Wrapper que aplica rate limit antes de chamar o handler.
+ * Wrapper que aplica rate limit (Upstash, fail-closed em prod) antes do handler.
  * Extrai IP do request como token de identificacao.
  *
  * Uso:
@@ -27,22 +34,20 @@ function extractIp(request: NextRequest): string {
  *   export const POST = withRateLimit(handler, { limit: 10 });
  */
 export function withRateLimit(handler: ApiHandler, options?: RateLimitWrapperOptions): ApiHandler {
-  const limit = options?.limit ?? 60;
+  const interval = options?.interval ?? 60_000;
 
-  // Usa limiter customizado se interval ou uniqueTokenPerInterval forem passados
-  const limiter =
-    options?.interval || options?.uniqueTokenPerInterval
-      ? rateLimit({
-          interval: options?.interval ?? 60_000,
-          uniqueTokenPerInterval: options?.uniqueTokenPerInterval ?? 500,
-        })
-      : defaultRateLimiter;
+  const limiter: DistributedRateLimiter = createRateLimiter({
+    limit: options?.limit ?? 60,
+    interval,
+    prefix: options?.prefix ?? "api",
+    uniqueTokenPerInterval: options?.uniqueTokenPerInterval ?? 500,
+  });
 
   return async (request: NextRequest, context?: unknown) => {
     const ip = extractIp(request);
 
     try {
-      await limiter.check(limit, ip);
+      await limiter.check(ip);
     } catch (error) {
       if (error instanceof RateLimitError) {
         return NextResponse.json(
@@ -53,9 +58,18 @@ export function withRateLimit(handler: ApiHandler, options?: RateLimitWrapperOpt
           {
             status: 429,
             headers: {
-              "Retry-After": String(Math.ceil((options?.interval ?? 60_000) / 1000)),
+              "Retry-After": String(Math.ceil(interval / 1000)),
             },
           }
+        );
+      }
+      if (error instanceof RateLimitUnavailableError) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Serviço temporariamente indisponível. Tente novamente.",
+          },
+          { status: 503, headers: { "Retry-After": "30" } }
         );
       }
       throw error;

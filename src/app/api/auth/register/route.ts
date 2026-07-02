@@ -5,18 +5,26 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { registerSchema } from "@/lib/validations/auth";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-utils";
-import { rateLimit, RateLimitError } from "@/lib/rate-limit";
+import { createRateLimiter, RateLimitError, RateLimitUnavailableError } from "@/lib/rate-limit";
 
-const registerLimiter = rateLimit({ interval: 60_000, uniqueTokenPerInterval: 100 });
+const registerLimiter = createRateLimiter({
+  limit: 5,
+  interval: 60_000,
+  prefix: "register",
+  uniqueTokenPerInterval: 100,
+});
 
 export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
     try {
-      await registerLimiter.check(5, ip);
+      await registerLimiter.check(ip);
     } catch (e) {
       if (e instanceof RateLimitError) {
         return errorResponse("Demasiadas tentativas. Tente novamente em 1 minuto.", 429);
+      }
+      if (e instanceof RateLimitUnavailableError) {
+        return errorResponse("Serviço temporariamente indisponível. Tente novamente.", 503);
       }
       throw e;
     }

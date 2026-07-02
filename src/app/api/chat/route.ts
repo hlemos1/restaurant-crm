@@ -4,9 +4,14 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { sops } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import { rateLimit, RateLimitError } from "@/lib/rate-limit";
+import { createRateLimiter, RateLimitError, RateLimitUnavailableError } from "@/lib/rate-limit";
 
-const chatLimiter = rateLimit({ interval: 60_000, uniqueTokenPerInterval: 500 });
+const chatLimiter = createRateLimiter({
+  limit: 10,
+  interval: 60_000,
+  prefix: "chat",
+  uniqueTokenPerInterval: 500,
+});
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -16,10 +21,15 @@ export async function POST(req: Request) {
 
   // Rate limit: 10 requests/min per user
   try {
-    await chatLimiter.check(10, session.user.id!);
+    await chatLimiter.check(session.user.id!);
   } catch (e) {
     if (e instanceof RateLimitError) {
       return new Response("Limite de requisicoes excedido. Tente em 1 minuto.", { status: 429 });
+    }
+    if (e instanceof RateLimitUnavailableError) {
+      return new Response("Serviço temporariamente indisponível. Tente novamente.", {
+        status: 503,
+      });
     }
     throw e;
   }
