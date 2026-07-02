@@ -1,15 +1,17 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-utils";
+import { parsePaginationParams } from "@/lib/validations/pagination";
 import {
   getNotifications,
+  countNotifications,
   getUnreadCount,
   markAsRead,
   markAllAsRead,
   createNotification,
 } from "@/services/notifications";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) return errorResponse("Não autorizado", 401);
@@ -18,12 +20,27 @@ export async function GET() {
     if (!tenantId) return errorResponse("No tenant", 400);
 
     const userId = session.user.id!;
-    const [notificationList, unreadCount] = await Promise.all([
-      getNotifications(tenantId, userId),
-      getUnreadCount(tenantId, userId),
-    ]);
 
-    return successResponse({ notifications: notificationList, unreadCount });
+    // Sem page/limit: lista completa (compat). Com params: pagina + meta.
+    const pagination = parsePaginationParams(req.nextUrl.searchParams);
+    if (!pagination) {
+      const [notificationList, unreadCount] = await Promise.all([
+        getNotifications(tenantId, userId),
+        getUnreadCount(tenantId, userId),
+      ]);
+      return successResponse({ notifications: notificationList, unreadCount });
+    }
+
+    const [notificationList, unreadCount, total] = await Promise.all([
+      getNotifications(tenantId, userId, pagination),
+      getUnreadCount(tenantId, userId),
+      countNotifications(tenantId, userId),
+    ]);
+    return successResponse({
+      notifications: notificationList,
+      unreadCount,
+      pagination: { page: pagination.page, limit: pagination.limit, total },
+    });
   } catch (error) {
     return handleApiError(error);
   }

@@ -1,11 +1,18 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
-import { successResponse, errorResponse, handleApiError } from "@/lib/api-utils";
-import { createOrder, getAllOrders, updateOrderStatus, softDeleteOrder } from "@/services/orders";
+import { successResponse, errorResponse, handleApiError, paginatedResponse } from "@/lib/api-utils";
+import {
+  createOrder,
+  getAllOrders,
+  countOrders,
+  updateOrderStatus,
+  softDeleteOrder,
+} from "@/services/orders";
 import { logActivity } from "@/services/activity";
 import { orderCreateSchema } from "@/lib/validations/order";
+import { parsePaginationParams } from "@/lib/validations/pagination";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) return errorResponse("Não autorizado", 401);
@@ -13,8 +20,17 @@ export async function GET() {
     const tenantId = session.user.tenantId;
     if (!tenantId) return errorResponse("No tenant", 400);
 
-    const data = await getAllOrders(tenantId);
-    return successResponse(data);
+    // Sem page/limit: array completo (compat). Com params: envelope paginado.
+    const pagination = parsePaginationParams(req.nextUrl.searchParams);
+    if (!pagination) {
+      return successResponse(await getAllOrders(tenantId));
+    }
+
+    const [data, total] = await Promise.all([
+      getAllOrders(tenantId, pagination),
+      countOrders(tenantId),
+    ]);
+    return paginatedResponse(data, { page: pagination.page, limit: pagination.limit, total });
   } catch (error) {
     return handleApiError(error);
   }

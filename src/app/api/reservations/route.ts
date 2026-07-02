@@ -1,9 +1,11 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { reservationSchema, reservationUpdateSchema } from "@/lib/validations/reservation";
-import { successResponse, errorResponse, handleApiError } from "@/lib/api-utils";
+import { parsePaginationParams } from "@/lib/validations/pagination";
+import { successResponse, errorResponse, handleApiError, paginatedResponse } from "@/lib/api-utils";
 import {
   getAllReservations,
+  countReservations,
   createReservation,
   updateReservation,
   softDeleteReservation,
@@ -11,7 +13,7 @@ import {
 import { logActivity } from "@/services/activity";
 import { onReservationConfirmed } from "@/services/automation-engine";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) return errorResponse("Não autorizado", 401);
@@ -19,8 +21,17 @@ export async function GET() {
     const tenantId = session.user.tenantId;
     if (!tenantId) return errorResponse("No tenant", 400);
 
-    const data = await getAllReservations(tenantId);
-    return successResponse(data);
+    // Sem page/limit: array completo (compat). Com params: envelope paginado.
+    const pagination = parsePaginationParams(req.nextUrl.searchParams);
+    if (!pagination) {
+      return successResponse(await getAllReservations(tenantId));
+    }
+
+    const [data, total] = await Promise.all([
+      getAllReservations(tenantId, pagination),
+      countReservations(tenantId),
+    ]);
+    return paginatedResponse(data, { page: pagination.page, limit: pagination.limit, total });
   } catch (error) {
     return handleApiError(error);
   }

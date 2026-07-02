@@ -1,9 +1,11 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { customerSchema, customerUpdateSchema } from "@/lib/validations/customer";
-import { successResponse, errorResponse, handleApiError } from "@/lib/api-utils";
+import { parsePaginationParams } from "@/lib/validations/pagination";
+import { successResponse, errorResponse, handleApiError, paginatedResponse } from "@/lib/api-utils";
 import {
   getAllCustomers,
+  countCustomers,
   createCustomer,
   updateCustomer,
   softDeleteCustomer,
@@ -11,7 +13,7 @@ import {
 import { logActivity } from "@/services/activity";
 import { onCustomerCreated } from "@/services/automation-engine";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) return errorResponse("Não autorizado", 401);
@@ -19,8 +21,17 @@ export async function GET() {
     const tenantId = session.user.tenantId;
     if (!tenantId) return errorResponse("No tenant", 400);
 
-    const data = await getAllCustomers(tenantId);
-    return successResponse(data);
+    // Sem page/limit: array completo (compat). Com params: envelope paginado.
+    const pagination = parsePaginationParams(req.nextUrl.searchParams);
+    if (!pagination) {
+      return successResponse(await getAllCustomers(tenantId));
+    }
+
+    const [data, total] = await Promise.all([
+      getAllCustomers(tenantId, pagination),
+      countCustomers(tenantId),
+    ]);
+    return paginatedResponse(data, { page: pagination.page, limit: pagination.limit, total });
   } catch (error) {
     return handleApiError(error);
   }
