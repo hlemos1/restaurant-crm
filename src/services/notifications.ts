@@ -10,8 +10,12 @@ interface CreateNotificationData {
   link?: string;
 }
 
-export async function getNotifications(tenantId: string, userId: string) {
-  return db
+export async function getNotifications(
+  tenantId: string,
+  userId: string,
+  pagination?: { limit: number; offset: number }
+) {
+  const query = db
     .select()
     .from(notifications)
     .where(
@@ -21,6 +25,23 @@ export async function getNotifications(tenantId: string, userId: string) {
       )
     )
     .orderBy(desc(notifications.createdAt));
+  if (pagination) {
+    return query.limit(pagination.limit).offset(pagination.offset);
+  }
+  return query;
+}
+
+export async function countNotifications(tenantId: string, userId: string) {
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.tenantId, tenantId),
+        or(eq(notifications.userId, userId), isNull(notifications.userId))
+      )
+    );
+  return Number(result[0]?.count ?? 0);
 }
 
 export async function getUnreadCount(tenantId: string, userId: string) {

@@ -1,14 +1,29 @@
 import { db } from "@/db";
 import { reservations } from "@/db/schema";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { ReservationInput } from "@/lib/validations/reservation";
 
-export async function getAllReservations(tenantId: string) {
-  return db
+export async function getAllReservations(
+  tenantId: string,
+  pagination?: { limit: number; offset: number }
+) {
+  const query = db
     .select()
     .from(reservations)
     .where(and(eq(reservations.tenantId, tenantId), isNull(reservations.deletedAt)))
     .orderBy(reservations.date);
+  if (pagination) {
+    return query.limit(pagination.limit).offset(pagination.offset);
+  }
+  return query;
+}
+
+export async function countReservations(tenantId: string) {
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(reservations)
+    .where(and(eq(reservations.tenantId, tenantId), isNull(reservations.deletedAt)));
+  return Number(result[0]?.count ?? 0);
 }
 
 export async function createReservation(tenantId: string, data: ReservationInput) {

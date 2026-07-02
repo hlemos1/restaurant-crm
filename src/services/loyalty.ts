@@ -44,8 +44,11 @@ export async function getBalance(tenantId: string, customerId: number) {
   return result[0] ?? null;
 }
 
-export async function getAllBalances(tenantId: string) {
-  return db
+export async function getAllBalances(
+  tenantId: string,
+  pagination?: { limit: number; offset: number }
+) {
+  const query = db
     .select({
       id: loyaltyBalances.id,
       customerId: loyaltyBalances.customerId,
@@ -58,6 +61,19 @@ export async function getAllBalances(tenantId: string) {
     .innerJoin(customers, eq(loyaltyBalances.customerId, customers.id))
     .where(eq(loyaltyBalances.tenantId, tenantId))
     .orderBy(desc(loyaltyBalances.points));
+  if (pagination) {
+    return query.limit(pagination.limit).offset(pagination.offset);
+  }
+  return query;
+}
+
+export async function countBalances(tenantId: string) {
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(loyaltyBalances)
+    .innerJoin(customers, eq(loyaltyBalances.customerId, customers.id))
+    .where(eq(loyaltyBalances.tenantId, tenantId));
+  return Number(result[0]?.count ?? 0);
 }
 
 export async function earnPoints(

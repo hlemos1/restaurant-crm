@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { orders } from "@/db/schema";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 export async function createOrder(
   tenantId: string,
@@ -28,12 +28,27 @@ export async function createOrder(
   return result[0];
 }
 
-export async function getAllOrders(tenantId: string) {
-  return db
+export async function getAllOrders(
+  tenantId: string,
+  pagination?: { limit: number; offset: number }
+) {
+  const query = db
     .select()
     .from(orders)
     .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt)))
     .orderBy(orders.createdAt);
+  if (pagination) {
+    return query.limit(pagination.limit).offset(pagination.offset);
+  }
+  return query;
+}
+
+export async function countOrders(tenantId: string) {
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(orders)
+    .where(and(eq(orders.tenantId, tenantId), isNull(orders.deletedAt)));
+  return Number(result[0]?.count ?? 0);
 }
 
 export async function updateOrderStatus(tenantId: string, id: number, status: string) {

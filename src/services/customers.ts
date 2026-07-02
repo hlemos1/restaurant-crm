@@ -1,14 +1,29 @@
 import { db } from "@/db";
 import { customers } from "@/db/schema";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { CustomerInput, CustomerUpdateInput } from "@/lib/validations/customer";
 
-export async function getAllCustomers(tenantId: string) {
-  return db
+export async function getAllCustomers(
+  tenantId: string,
+  pagination?: { limit: number; offset: number }
+) {
+  const query = db
     .select()
     .from(customers)
     .where(and(eq(customers.tenantId, tenantId), isNull(customers.deletedAt)))
     .orderBy(customers.createdAt);
+  if (pagination) {
+    return query.limit(pagination.limit).offset(pagination.offset);
+  }
+  return query;
+}
+
+export async function countCustomers(tenantId: string) {
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(customers)
+    .where(and(eq(customers.tenantId, tenantId), isNull(customers.deletedAt)));
+  return Number(result[0]?.count ?? 0);
 }
 
 export async function getCustomerById(tenantId: string, id: number) {
