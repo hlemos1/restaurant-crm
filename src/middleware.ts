@@ -1,11 +1,11 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import { buildAllowedOrigins } from "@/lib/cors";
 
-const ALLOWED_ORIGINS = [
-  process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-  "https://redenexial.com",
-  "https://restaurant-crm-iota.vercel.app",
-];
+const ALLOWED_ORIGINS = buildAllowedOrigins({
+  NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+  NODE_ENV: process.env.NODE_ENV,
+});
 
 export default auth((req) => {
   const response = NextResponse.next();
@@ -15,10 +15,7 @@ export default auth((req) => {
   if (isApiRoute && ALLOWED_ORIGINS.includes(origin)) {
     response.headers.set("Access-Control-Allow-Origin", origin);
     response.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-    response.headers.set(
-      "Access-Control-Allow-Headers",
-      "Content-Type, Authorization, X-Tenant-Id"
-    );
+    response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
     response.headers.set("Access-Control-Max-Age", "86400");
   }
 

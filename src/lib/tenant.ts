@@ -80,10 +80,3 @@ export async function getChildTenants(parentId: string) {
     .from(tenants)
     .where(and(eq(tenants.parentId, parentId), eq(tenants.active, true)));
 }
-
-/**
- * Resolve tenant from request headers (for API routes)
- */
-export function getTenantIdFromHeaders(headers: Headers): string | null {
-  return headers.get("x-tenant-id");
-}
