@@ -5,6 +5,16 @@ export function successResponse<T>(data: T, status = 200) {
   return NextResponse.json({ success: true, data }, { status });
 }
 
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+}
+
+export function paginatedResponse<T>(data: T[], pagination: PaginationMeta, status = 200) {
+  return NextResponse.json({ success: true, data, pagination }, { status });
+}
+
 export function errorResponse(message: string, status = 400) {
   return NextResponse.json({ success: false, error: message }, { status });
 }
